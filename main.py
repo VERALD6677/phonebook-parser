@@ -3,27 +3,40 @@ from pprint import pprint
 import csv
 
 def format_phone(phone):
-    numbers = re.findall(r'\d', phone)
-    formatted_phone = f'+7({"".join(numbers[-10:-7])}){"".join(numbers[-7:-4])}-{"".join(numbers[-4:-2])}-{"".join(numbers[-2:])}'
-    if 'доб' in phone:
-        ext = re.search(r'доб\.\s?(\d+)', phone).group(1)
-        formatted_phone += f' доб.{ext}'
-    return formatted_phone
+    phone_pattern = (
+        r"(\+7|8)?\s*\(?(\d{3})\)?[\s-]*(\d{3})[\s-]*(\d{2})[\s-]*(\d{2})"
+        r"(\s*\(?доб\.\s*(\d+)\)?)?"
+    )
+    phone_replace = r"+7(\2)\3-\4-\5"
+    match = re.match(phone_pattern, phone)
+    if match and match.group(7):
+        return f"{re.sub(phone_pattern, phone_replace, phone)} доб.{match.group(7)}"
+    else:
+        return re.sub(phone_pattern, phone_replace, phone)
+
+def process_name(contact):
+    full_name = ' '.join(contact[:3]).split()
+    while len(full_name) < 3:
+        full_name.append('')
+    contact[:3] = full_name
+    return contact
+
+def merge_contacts(existing_contact, new_contact):
+    return [new if new else old for old, new in zip(existing_contact, new_contact)]
 
 with open("phonebook_raw.csv", encoding="utf-8") as f:
     rows = csv.reader(f, delimiter=",")
     contacts_list = list(rows)
 
 for contact in contacts_list:
-    if len(contact[0].split()) == 3:
-        contact[0], contact[1], contact[2] = contact[0].split()
+    contact = process_name(contact)
     contact[5] = format_phone(contact[5])
 
 contacts_dict = {}
 for contact in contacts_list:
-    key = f"{contact[0]} {contact[1]} {contact[2]}"
+    key = f"{contact[0]} {contact[1]}"
     if key in contacts_dict:
-        contacts_dict[key] = [contacts_dict[key][0]] + [item if item else contacts_dict[key][idx] for idx, item in enumerate(contact[3:])]
+        contacts_dict[key] = merge_contacts(contacts_dict[key], contact)
     else:
         contacts_dict[key] = contact
 
@@ -34,5 +47,4 @@ with open("phonebook.csv", "w", encoding="utf-8") as f:
     datawriter.writerows(contacts_list)
 
 pprint(contacts_list)
-
 
